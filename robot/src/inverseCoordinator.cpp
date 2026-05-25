@@ -227,36 +227,14 @@ void setup() {
   ledcSetup(PWM_CHANNEL_BICEP, FREQ, PWM_RESOLUTION);
   ledcAttachPin(18, PWM_CHANNEL_BICEP);
 
-  potValueBicep = analogRead(26);
-  //duty_value_bicep = (((float)potValueBicep/4095)*80 + 400);
-  duty_value_bicep = (((float)potValueBicep/4095)*192 + 288);
-  dutyBicep = (int)round(duty_value_bicep);
-  prevDutyBicep = dutyBicep;
-
-
 
   ledcSetup(PWM_CHANNEL_FOREARM, FREQ, PWM_RESOLUTION);
   ledcAttachPin(19, PWM_CHANNEL_FOREARM);
-
-  potValueForearm = analogRead(25);
-  //duty_value_forearm = ((((float)potValueForearm/4095)*270) + 130);
-  duty_value_forearm = ((((float)potValueForearm/4095)*200) + 105);
-  dutyForearm = (int)round(duty_value_forearm);
-  prevDutyForearm = prevDutyForearm;
-  forearmLength = 15.5;
-  
 
 
   ledcSetup(PWM_CHANNEL_SHOULDER, FREQ, PWM_RESOLUTION);
   ledcAttachPin(5, PWM_CHANNEL_SHOULDER); 
 
-  
-  potValueShoulder = analogRead(27);
-  //duty_value_forearm = ((((float)potValueForearm/4095)*270) + 130);
-  duty_value_shoulder = ((((float)potValueShoulder/4095)*400) + 105);
-  dutyShoulder= (int)round(duty_value_shoulder);
-  prevDutyShoulder = prevDutyShoulder;
-  
   ledcSetup(PWM_CHANNEL_HAND, FREQ, PWM_RESOLUTION);
   ledcAttachPin(4, PWM_CHANNEL_HAND); 
 
@@ -269,21 +247,18 @@ void setup() {
 
 
   //120
-  for (int duty_cycle = 0; duty_cycle <= 105 ; duty_cycle++){
-    ledcWrite(PWM_CHANNEL_SHOULDER, duty_cycle);
-    delay(15);
-  }
-
-  for (int duty_cycle = 0; duty_cycle <= 184 ; duty_cycle++){
+  
+  for (int duty_cycle = 305; duty_cycle >= 184 ; duty_cycle--){
     ledcWrite(PWM_CHANNEL_FOREARM, duty_cycle);
     delay(15);
   }
 
-  for (int duty_cycle = 0; duty_cycle <= 360 ; duty_cycle++){
+  for (int duty_cycle = 338; duty_cycle <= 360 ; duty_cycle++){
     ledcWrite(PWM_CHANNEL_BICEP, duty_cycle);
     delay(15);
   }
 
+  
   //delay(100);
 /*
   for (int duty_cycle = 0; duty_cycle <= 25 ; duty_cycle++){
@@ -361,12 +336,17 @@ void loop(){
             cout << " DUTY SHOULDER = " << inverseCalculateDutyShoulder(coord) << endl;
             cout << " DUTY BICEP = " << calculateBicepDuty(calculateBicepLengthInv(sqrt(pow(coord.first, 2) + pow(coord.second, 2)), 0)) << endl;
             cout << " DUTY FOREARM = " << calculateForearmDuty(calculateForearmLengthInv(sqrt(pow(coord.first, 2) + pow(coord.second, 2)), 0)) << endl;
-            moveToTarget(coord, prevCoord);
-            prevCoord = coord;
-            
+            if ((calculateBicepDuty(calculateBicepLengthInv(sqrt(pow(coord.first, 2) + pow(coord.second, 2)), 4)) > 460) || (calculateForearmDuty(calculateForearmLengthInv(sqrt(pow(coord.first, 2) + pow(coord.second, 2)), 0)) > 306.0)){
+                cout << "Issue";
+            }
+            else{
+                moveToTarget(coord, prevCoord);
+                prevCoord = coord;
+            }  
 
         }
     delay(50);
+    
     
   }
   
