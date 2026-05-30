@@ -80,7 +80,9 @@ int dutyS = 0;
 int dutyB = 0;
 int dutyF = 0;
 
-int baselineForarm = 438;
+int zoffset = 10;
+
+int baselineForarm = 500;
 
 // put function declarations here:
 
@@ -216,24 +218,24 @@ void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevC
     cout << "new movement" << endl; 
         
     dutyS =  inverseCalculateDutyShoulder(coord);
-    dutyB =  calculateBicepDuty(calculateBicepLengthInv(coord, 10));
+    dutyB =  calculateBicepDuty(calculateBicepLengthInv(coord, zoffset));
     cout << "cur" << dutyB << endl;
 
     prevDutyS =  inverseCalculateDutyShoulder(prevCoord);
 
-    prevDutyB =  calculateBicepDuty(calculateBicepLengthInv(prevCoord,10));
+    prevDutyB =  calculateBicepDuty(calculateBicepLengthInv(prevCoord,zoffset));
     cout << "prev" << prevDutyB << endl;
 
 
     if (dutyB >= prevDutyB){
         prevDutyF = dutyF;
-        dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, 10), true, dutyB, prevDutyB, true);
+        dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, zoffset), true, dutyB, prevDutyB, true);
         // FIXED: Using prevDutyB to calculate the true previous starting point
         //prevDutyF = calculateForearmDuty(calculateForearmLengthInv(prevCoord, 10), true, prevDutyB, false);
     }
     else{
         prevDutyF = dutyF;
-        dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, 10), false, dutyB, prevDutyB, true);
+        dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, zoffset), false, dutyB, prevDutyB, true);
         // FIXED: Using prevDutyB to calculate the true previous starting point
         //prevDutyF = calculateForearmDuty(calculateForearmLengthInv(prevCoord, 10), false, prevDutyB, false);
     }
@@ -307,41 +309,43 @@ void setup() {
   ledcAttachPin(21, PWM_CHANNEL_GRIPPER); 
 
   prevCoord.first = 20.0;
-  prevCoord.second = 0.0;
+  prevCoord.second = 2.5;
   prevDutyB = 338;
   prevDutyF = 500;
   prevDutyS = 105;
   //120
-  dutyB = 371; 
-  dutyF = 507;
   dutyS = 105;
 
-
-
-
-// starting point (20,0)
-/*
-  for (int duty_cycle = 305; duty_cycle >= 180 ; duty_cycle--){
-    ledcWrite(PWM_CHANNEL_FOREARM, duty_cycle);
-    delay(15);
-  }
-
-  for (int duty_cycle = 338; duty_cycle <= 356 ; duty_cycle++){
-    ledcWrite(PWM_CHANNEL_BICEP, duty_cycle);
-    delay(15);
-  }
-*/
+  dutyB = calculateBicepDuty(calculateBicepLengthInv(prevCoord, zoffset));
+  cout << "initial dutyB" << dutyB << endl;
+  dutyF = calculateForearmDuty(calculateForearmLengthInv(prevCoord, zoffset), true, dutyB, prevDutyB, true);
+  cout << "initial dutyF" << dutyF << endl;
 
 // starting point (20,0)
 
-  for (int duty_cycle = 338; duty_cycle <= 371 ; duty_cycle++){
-    ledcWrite(PWM_CHANNEL_BICEP, duty_cycle);
-    delay(15);
+if (prevDutyB >= dutyB) {
+      for (int duty_cycle = prevDutyB; duty_cycle >= dutyB ; duty_cycle--){
+          ledcWrite(PWM_CHANNEL_BICEP, duty_cycle);
+          delay(15);
+      }
+  } else {
+      for (int duty_cycle = prevDutyB; duty_cycle <= dutyB ; duty_cycle++){
+          ledcWrite(PWM_CHANNEL_BICEP, duty_cycle);
+          delay(15);
+      }
   }
 
-  for (int duty_cycle = 500; duty_cycle <= 507 ; duty_cycle++){
-    ledcWrite(PWM_CHANNEL_FOREARM, duty_cycle);
-    delay(15);
+  // --- Forearm Startup Movement ---
+  if (prevDutyF >= dutyF) {
+      for (int duty_cycle = prevDutyF; duty_cycle >= dutyF ; duty_cycle--){
+          ledcWrite(PWM_CHANNEL_FOREARM, duty_cycle);
+          delay(15);
+      }
+  } else {
+      for (int duty_cycle = prevDutyF; duty_cycle <= dutyF ; duty_cycle++){
+          ledcWrite(PWM_CHANNEL_FOREARM, duty_cycle);
+          delay(15);
+      }
   }
 
   
@@ -421,7 +425,7 @@ void loop(){
             cout << "\n--- New Target Received ---" << endl;
             cout << "Target X: " << first << ", Y: " << second << endl;
           // FIXED: Calculate a temporary target bicep value so the prints are honest
-            int targetDutyB = calculateBicepDuty(calculateBicepLengthInv(coord, 10));
+            int targetDutyB = calculateBicepDuty(calculateBicepLengthInv(coord, zoffset));
             
             cout << " DUTY SHOULDER = " << inverseCalculateDutyShoulder(coord) << endl;
             cout << " DUTY BICEP = " << targetDutyB << endl;
