@@ -72,7 +72,15 @@ int length = 0;
 std::pair<double,double> prevCoord;
 std::pair<double, double> coord;
 
+int prevDutyS = 0;
+int prevDutyB = 0;
+int prevDutyF = 0;
 
+int dutyS = 0;
+int dutyB = 0;
+int dutyF = 0;
+
+int baselineForarm = 438;
 
 // put function declarations here:
 
@@ -96,14 +104,35 @@ int inverseCalculateDutyShoulder(std::pair<double, double> coordinate){
 }
 
 
-double calculateBicepLengthInv(double length, double zoffset){
-  double angle = acos((pow(length, 2) + pow(10,2) - pow(16.5,2)) / (2*(length)*(10))) + atan((zoffset+7)/length);
-  double lengthBicep = 10*cos(angle);
+double calculateBicepLengthInv(std::pair<double, double> coord, double zoffset){
+  // 9 = from height of gripper
+  // 4 = height from bottom of base
+  // 2 = height from item.
+  double ground_dist = sqrt(pow(coord.first, 2) + pow(coord.second, 2));
+  double length = sqrt(pow(ground_dist, 2) + pow(zoffset-5, 2));
+
+  double max_reach = 29.99; // 13.5 (bicep) + 16.5 (forearm) - 0.01 to prevent floating point errors
+  if (length > max_reach) {
+      cout << "WARNING: Target out of reach. Clamping bicep calculation." << endl;
+      length = max_reach;
+  }
+
+  double angle = acos((pow(length, 2) + pow(13.5,2) - pow(16.5,2)) / (2*(length)*(13.5))) + atan((zoffset-5)/ground_dist);
+  double lengthBicep = 13.5*cos(angle);
   return lengthBicep;
 }
 
-std::pair<double, double> calculateForearmLengthInv(double length, double zoffset){
-  double angle = acos((pow(16.5, 2) + pow(length,2) - pow(10,2)) / (2*(length)*(16.5))) - atan((zoffset+7)/length);
+std::pair<double, double> calculateForearmLengthInv(std::pair<double, double> coord, double zoffset){
+  double ground_dist = sqrt(pow(coord.first, 2) + pow(coord.second, 2));
+  double length = sqrt(pow(ground_dist, 2) + pow(zoffset-5, 2));
+
+  double max_reach = 29.99;
+  if (length > max_reach) {
+      cout << "WARNING: Target out of reach. Clamping bicep calculation." << endl;
+      length = max_reach;
+  } 
+
+  double angle = acos((pow(16.5, 2) + pow(length,2) - pow(13.5,2)) / (2*(length)*(16.5))) - atan((zoffset-5)/ground_dist);
   double lengthForearm = 16.5*cos(angle);
   std::pair<double, double> lengthAngle;
   lengthAngle.first = lengthForearm;
@@ -113,28 +142,41 @@ std::pair<double, double> calculateForearmLengthInv(double length, double zoffse
 }
 
 int calculateBicepDuty(double bicepLength){
-  int dutyBicep = (int)round((131.0 * ((90.0 - (acos(bicepLength / 10.0) / deg_to_rad)) / 90.0)) + 338.0);
+  int dutyBicep = (int)round((131.0 * ((90.0 - (acos(bicepLength / 13.5) / deg_to_rad)) / 90.0)) + 338.0);
   return dutyBicep;
 }
 
-int calculateForearmDuty(std::pair<double, double> lengthAngle){
+
+
+
+int calculateForearmDuty(std::pair<double, double> lengthAngle, bool greater, int newDutyBicep, int prevDutyBicep, bool isNew){
   int dutyForearm = 0;
-  if (lengthAngle.second >= 0){
-    dutyForearm = (int)round((((acos(lengthAngle.first / 16.5) / deg_to_rad) / -30.0) * 111.0) + 223.0); 
+  int forearmAdjust = (newDutyBicep - prevDutyBicep) * 2.073;
+  cout << "adjustment factor of " << forearmAdjust << endl;
+  if (isNew){
+    baselineForarm -= forearmAdjust;
+  }
+
+  if (lengthAngle.second <= 0){
+    dutyForearm = (int)round((((acos(lengthAngle.first / 16.5) / deg_to_rad) / -30.0) * 111.0) - (baselineForarm)); 
   }
   else{
-    dutyForearm = (int)round(223.0 - (((acos(lengthAngle.first / 16.5) / deg_to_rad) / 45.0) * 118.0));  
+    dutyForearm = (int)round((baselineForarm) + (((acos(lengthAngle.first / 16.5) / deg_to_rad) / 45.0) * 118.0));  
   }   
+  
+  
+  cout << " new forearm duty " << dutyForearm;
   return dutyForearm;
 }
+
 
 double calculateBicepLength(){
 
   if (dutyBicep >= 338){
-    bicepLength = 10.0 * cos(((double)(90.0 -(90.0*(double)(((dutyBicep - 338.0) / (469.0 - 338.0))))))*deg_to_rad);
+    bicepLength = 13.5 * cos(((double)(90.0 -(90.0*(double)(((dutyBicep - 338.0) / (469.0 - 338.0))))))*deg_to_rad);
   }
   else if (dutyBicep < 338){
-    bicepLength = -10.0 * cos(((double)((dutyBicep/338.0)) * 90.0)*deg_to_rad);
+    bicepLength = -13.5 * cos(((double)((dutyBicep/338.0)) * 90.0)*deg_to_rad);
   }
   return bicepLength;
 }
@@ -150,6 +192,8 @@ double calculateForearmLength(){
   return forearmLength;
 
 }
+
+
 
 void grip(){
     for (int duty_cycle = 0; duty_cycle <= 120 ; duty_cycle++){
@@ -170,13 +214,29 @@ void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevC
   if (coord != prevCoord){
     //cout << "atan result " << atan2(1, 1) * rad_to_deg << endl;
     cout << "new movement" << endl; 
-    int dutyS =  inverseCalculateDutyShoulder(coord);
-    int dutyB =  calculateBicepDuty(calculateBicepLengthInv(sqrt(pow(coord.first, 2) + pow(coord.second, 2)), 4));
-    int dutyF = calculateForearmDuty(calculateForearmLengthInv(sqrt(pow(coord.first, 2) + pow(coord.second, 2)), 4));
-    
-    int prevDutyS =  inverseCalculateDutyShoulder(prevCoord);
-    int prevDutyB =  calculateBicepDuty(calculateBicepLengthInv(sqrt(pow(prevCoord.first, 2) + pow(prevCoord.second, 2)), 4));
-    int prevDutyF = calculateForearmDuty(calculateForearmLengthInv(sqrt(pow(prevCoord.first, 2) + pow(prevCoord.second, 2)), 4));
+        
+    dutyS =  inverseCalculateDutyShoulder(coord);
+    dutyB =  calculateBicepDuty(calculateBicepLengthInv(coord, 10));
+    cout << "cur" << dutyB << endl;
+
+    prevDutyS =  inverseCalculateDutyShoulder(prevCoord);
+
+    prevDutyB =  calculateBicepDuty(calculateBicepLengthInv(prevCoord,10));
+    cout << "prev" << prevDutyB << endl;
+
+
+    if (dutyB >= prevDutyB){
+        prevDutyF = dutyF;
+        dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, 10), true, dutyB, prevDutyB, true);
+        // FIXED: Using prevDutyB to calculate the true previous starting point
+        //prevDutyF = calculateForearmDuty(calculateForearmLengthInv(prevCoord, 10), true, prevDutyB, false);
+    }
+    else{
+        prevDutyF = dutyF;
+        dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, 10), false, dutyB, prevDutyB, true);
+        // FIXED: Using prevDutyB to calculate the true previous starting point
+        //prevDutyF = calculateForearmDuty(calculateForearmLengthInv(prevCoord, 10), false, prevDutyB, false);
+    }
     
     if (prevDutyS >= dutyS)
         for (int duty_cycle = prevDutyS; duty_cycle >= dutyS ; duty_cycle--){
@@ -213,10 +273,14 @@ void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevC
             delay(15);
         }
     }
+    cout << "prevDutyB=" << prevDutyB << " dutyB=" << dutyB << endl;
+    cout << "prevDutyF=" << prevDutyF << " dutyF=" << dutyF << endl;
+    cout << "forearmAdjust=" << (dutyB - prevDutyB) * 2.073 << endl;
   }
     else{
-        cout << "no new movement" << endl; 
+      cout << "no new movement" << endl; 
     }
+
 }
 
 
@@ -244,17 +308,39 @@ void setup() {
 
   prevCoord.first = 20.0;
   prevCoord.second = 0.0;
-
-
+  prevDutyB = 338;
+  prevDutyF = 500;
+  prevDutyS = 105;
   //120
-  
-  for (int duty_cycle = 305; duty_cycle >= 184 ; duty_cycle--){
+  dutyB = 371; 
+  dutyF = 507;
+  dutyS = 105;
+
+
+
+
+// starting point (20,0)
+/*
+  for (int duty_cycle = 305; duty_cycle >= 180 ; duty_cycle--){
     ledcWrite(PWM_CHANNEL_FOREARM, duty_cycle);
     delay(15);
   }
 
-  for (int duty_cycle = 338; duty_cycle <= 360 ; duty_cycle++){
+  for (int duty_cycle = 338; duty_cycle <= 356 ; duty_cycle++){
     ledcWrite(PWM_CHANNEL_BICEP, duty_cycle);
+    delay(15);
+  }
+*/
+
+// starting point (20,0)
+
+  for (int duty_cycle = 338; duty_cycle <= 371 ; duty_cycle++){
+    ledcWrite(PWM_CHANNEL_BICEP, duty_cycle);
+    delay(15);
+  }
+
+  for (int duty_cycle = 500; duty_cycle <= 507 ; duty_cycle++){
+    ledcWrite(PWM_CHANNEL_FOREARM, duty_cycle);
     delay(15);
   }
 
@@ -329,14 +415,26 @@ void loop(){
 
             coord.first = first;
             coord.second = second;
+            coord.second += 2.5;
             
             // Print confirmations back to the serial monitor so you know it registered
             cout << "\n--- New Target Received ---" << endl;
             cout << "Target X: " << first << ", Y: " << second << endl;
+          // FIXED: Calculate a temporary target bicep value so the prints are honest
+            int targetDutyB = calculateBicepDuty(calculateBicepLengthInv(coord, 10));
+            
             cout << " DUTY SHOULDER = " << inverseCalculateDutyShoulder(coord) << endl;
-            cout << " DUTY BICEP = " << calculateBicepDuty(calculateBicepLengthInv(sqrt(pow(coord.first, 2) + pow(coord.second, 2)), 0)) << endl;
-            cout << " DUTY FOREARM = " << calculateForearmDuty(calculateForearmLengthInv(sqrt(pow(coord.first, 2) + pow(coord.second, 2)), 0)) << endl;
-            if ((calculateBicepDuty(calculateBicepLengthInv(sqrt(pow(coord.first, 2) + pow(coord.second, 2)), 4)) > 460) || (calculateForearmDuty(calculateForearmLengthInv(sqrt(pow(coord.first, 2) + pow(coord.second, 2)), 0)) > 306.0)){
+            cout << " DUTY BICEP = " << targetDutyB << endl;
+            
+            if (dutyB <= targetDutyB){
+                cout << dutyB << " TO " << targetDutyB << "new is greater" << endl;
+                //cout << " DUTY FOREARM = " << calculateForearmDuty(calculateForearmLengthInv(coord, 10), true, targetDutyB) << endl;
+            }
+            else{
+                cout << dutyB << " TO " << targetDutyB << "old is gfreater" << endl;
+                //cout << " DUTY FOREARM = " << calculateForearmDuty(calculateForearmLengthInv(coord, 10), false, targetDutyB) << endl;
+            }
+            if ((targetDutyB > 460) || (targetDutyB < 299)){
                 cout << "Issue";
             }
             else{
@@ -350,6 +448,3 @@ void loop(){
     
   }
   
-
-
-
