@@ -75,14 +75,17 @@ std::pair<double, double> coord;
 int prevDutyS = 0;
 int prevDutyB = 0;
 int prevDutyF = 0;
+int prevDutyH = 0;
 
 int dutyS = 0;
 int dutyB = 0;
 int dutyF = 0;
+int dutyH = 0;
 
 int zoffset = 10;
 
 int baselineForarm = 500;
+int baselineHand = 500;
 
 // put function declarations here:
 
@@ -171,6 +174,16 @@ int calculateForearmDuty(std::pair<double, double> lengthAngle, bool greater, in
   return dutyForearm;
 }
 
+int calculateHandDuty(bool greater, int newDutyForearm, int prevDutyForearm, bool isNew){
+    int handAdjust = (newDutyForearm - prevDutyForearm) * 1.0;
+    cout << "adjustment factor of " << handAdjust << endl;
+    if (isNew){
+      baselineHand -= handAdjust;
+  }
+  return baselineHand;
+}
+
+
 
 double calculateBicepLength(){
 
@@ -198,93 +211,87 @@ double calculateForearmLength(){
 
 
 void grip(){
-    for (int duty_cycle = 0; duty_cycle <= 120 ; duty_cycle++){
+    for (int duty_cycle = 180; duty_cycle <= 380 ; duty_cycle++){
       ledcWrite(PWM_CHANNEL_GRIPPER, duty_cycle);
-      delay(1);
+      //delay(0);
     }
 }
 
 void ungrip(){
-    for (int duty_cycle = 0; duty_cycle <= 335 ; duty_cycle++){
+    for (int duty_cycle = 380; duty_cycle >= 180 ; duty_cycle--){
       ledcWrite(PWM_CHANNEL_GRIPPER, duty_cycle);
-      delay(1);
+      //delay(5); // ADDED DELAY HERE
     }
 }
 
-void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevCoord){
+void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevCoord, int newZoffset){
+  Serial.print(zoffset); Serial.print(F(" and new ")); Serial.println(newZoffset);
   
-  if (coord != prevCoord){
-    //cout << "atan result " << atan2(1, 1) * rad_to_deg << endl;
-    cout << "new movement" << endl; 
+  if (coord != prevCoord || newZoffset != zoffset) {
+    Serial.println(F("new movement")); 
         
-    dutyS =  inverseCalculateDutyShoulder(coord);
-    dutyB =  calculateBicepDuty(calculateBicepLengthInv(coord, zoffset));
-    cout << "cur" << dutyB << endl;
-
-    prevDutyS =  inverseCalculateDutyShoulder(prevCoord);
-
-    prevDutyB =  calculateBicepDuty(calculateBicepLengthInv(prevCoord,zoffset));
-    cout << "prev" << prevDutyB << endl;
-
-
-    if (dutyB >= prevDutyB){
-        prevDutyF = dutyF;
-        dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, zoffset), true, dutyB, prevDutyB, true);
-        // FIXED: Using prevDutyB to calculate the true previous starting point
-        //prevDutyF = calculateForearmDuty(calculateForearmLengthInv(prevCoord, 10), true, prevDutyB, false);
-    }
-    else{
-        prevDutyF = dutyF;
-        dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, zoffset), false, dutyB, prevDutyB, true);
-        // FIXED: Using prevDutyB to calculate the true previous starting point
-        //prevDutyF = calculateForearmDuty(calculateForearmLengthInv(prevCoord, 10), false, prevDutyB, false);
-    }
+    // 1. Calculate target duties
+    dutyS = inverseCalculateDutyShoulder(coord);
+    dutyB = calculateBicepDuty(calculateBicepLengthInv(coord, newZoffset));
     
-    if (prevDutyS >= dutyS)
-        for (int duty_cycle = prevDutyS; duty_cycle >= dutyS ; duty_cycle--){
-            ledcWrite(PWM_CHANNEL_SHOULDER, duty_cycle);
-            delay(15);
-        }
-    else{
-        for (int duty_cycle = prevDutyS; duty_cycle <= dutyS ; duty_cycle++){
-            ledcWrite(PWM_CHANNEL_SHOULDER, duty_cycle);
-            delay(15);
-        }
+    prevDutyS = inverseCalculateDutyShoulder(prevCoord);
+    prevDutyB = calculateBicepDuty(calculateBicepLengthInv(prevCoord, zoffset));
+
+    // Calculate forearm and hand duties based on direction
+    if (dutyB >= prevDutyB) {
+        prevDutyF = dutyF;
+        dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, newZoffset), true, dutyB, prevDutyB, true);
+    } else {
+        prevDutyF = dutyF;
+        dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, newZoffset), false, dutyB, prevDutyB, true);
     }
 
-    if (prevDutyB >= dutyB)
-        for (int duty_cycle = prevDutyB; duty_cycle >= dutyB ; duty_cycle--){
-            ledcWrite(PWM_CHANNEL_BICEP, duty_cycle);
-            delay(15);
-        }
-    else{
-        for (int duty_cycle = prevDutyB; duty_cycle <= dutyB ; duty_cycle++){
-            ledcWrite(PWM_CHANNEL_BICEP, duty_cycle);
-            delay(15);
-        }
+    if (dutyF >= prevDutyF) {
+        prevDutyH = dutyH;
+        dutyH = calculateHandDuty(true, dutyF, prevDutyF, true);
+    } else {
+        prevDutyH = dutyH;
+        dutyH = calculateHandDuty(false, dutyF, prevDutyF, true);
     }
 
-    if (prevDutyF >= dutyF)
-        for (int duty_cycle = prevDutyF; duty_cycle >= dutyF ; duty_cycle--){
-            ledcWrite(PWM_CHANNEL_FOREARM, duty_cycle);
-            delay(15);
-        }
-    else{
-        for (int duty_cycle = prevDutyF; duty_cycle <= dutyF ; duty_cycle++){
-            ledcWrite(PWM_CHANNEL_FOREARM, duty_cycle);
-            delay(15);
-        }
+    zoffset = newZoffset;
+
+    // 2. Determine the maximum number of steps required across ALL servos
+    int deltaS = abs(dutyS - prevDutyS);
+    int deltaB = abs(dutyB - prevDutyB);
+    int deltaF = abs(dutyF - prevDutyF);
+    int deltaH = abs(dutyH - prevDutyH);
+
+    int maxSteps = max(max(deltaS, deltaB), max(deltaF, deltaH));
+
+    if (maxSteps == 0) return; // No movement needed
+
+    // 3. Coordinated step loop
+    for (int step = 0; step <= maxSteps; step++) {
+        float progress = (float)step / maxSteps; // Normalized progress from 0.0 to 1.0
+
+        // Linearly interpolate current position for each servo
+        int currentS = prevDutyS + (int)((dutyS - prevDutyS) * progress);
+        int currentB = prevDutyB + (int)((dutyB - prevDutyB) * progress);
+        int currentF = prevDutyF + (int)((dutyF - prevDutyF) * progress);
+        int currentH = prevDutyH + (int)((dutyH - prevDutyH) * progress);
+
+        // Write positions simultaneously
+        ledcWrite(PWM_CHANNEL_SHOULDER, currentS);
+        ledcWrite(PWM_CHANNEL_BICEP, currentB);
+        ledcWrite(PWM_CHANNEL_FOREARM, currentF);
+        ledcWrite(PWM_CHANNEL_HAND, currentH);
+
+        delay(15); // Controls overall speed of the synchronized movement
     }
-    cout << "prevDutyB=" << prevDutyB << " dutyB=" << dutyB << endl;
-    cout << "prevDutyF=" << prevDutyF << " dutyF=" << dutyF << endl;
-    cout << "forearmAdjust=" << (dutyB - prevDutyB) * 2.073 << endl;
+
+    // 4. Update tracking variables for debugging
+    Serial.print(F("prevDutyB=")); Serial.print(prevDutyB); Serial.print(F(" dutyB=")); Serial.println(dutyB);
+    Serial.print(F("prevDutyF=")); Serial.print(prevDutyF); Serial.print(F(" dutyF=")); Serial.println(dutyF);
+  } else {
+    Serial.println(F("no new movement")); 
   }
-    else{
-      cout << "no new movement" << endl; 
-    }
-
 }
-
 
 void setup() {
   Serial.begin(115200);
@@ -312,7 +319,9 @@ void setup() {
   prevCoord.second = 2.5;
   prevDutyB = 338;
   prevDutyF = 500;
-  prevDutyS = 105;
+  prevDutyS = 105; //changed this to 90 from 105 
+  prevDutyH = 500;
+
   //120
   dutyS = 105;
 
@@ -320,8 +329,14 @@ void setup() {
   cout << "initial dutyB" << dutyB << endl;
   dutyF = calculateForearmDuty(calculateForearmLengthInv(prevCoord, zoffset), true, dutyB, prevDutyB, true);
   cout << "initial dutyF" << dutyF << endl;
+  dutyH = 500;
+  cout << "initial dutyF" << dutyH << endl;
+
+
+
 
 // starting point (20,0)
+
 
 if (prevDutyB >= dutyB) {
       for (int duty_cycle = prevDutyB; duty_cycle >= dutyB ; duty_cycle--){
@@ -347,6 +362,12 @@ if (prevDutyB >= dutyB) {
           delay(15);
       }
   }
+
+  for (int duty_cycle = 0; duty_cycle <= 500 ; duty_cycle++){
+      ledcWrite(PWM_CHANNEL_HAND, duty_cycle);
+      delay(15);
+  } 
+
 
   
   //delay(100);
@@ -403,52 +424,70 @@ std::pair<double, double> inverseCoordinateCalculator(std::pair<double, double> 
   return coordinate;
 }
 */
-
-void loop(){
-    
+void loop() {
+    // Only trigger if there is actual data waiting
     if (Serial.available() > 0) {
-            
-            // Read the first two floating-point numbers separated by a space or comma
-            double first = Serial.parseFloat();
-            double second = Serial.parseFloat();
+        
+        // 1. Read the three floating-point numbers
+        double first = Serial.parseFloat();
+        double second = Serial.parseFloat();
+        double third = Serial.parseFloat();
 
-            // Clear any leftover newline characters (\r or \n) in the buffer
-            while (Serial.available() > 0) {
-                Serial.read();
-            }
-
-            coord.first = first;
-            coord.second = second;
-            coord.second += 2.5;
-            
-            // Print confirmations back to the serial monitor so you know it registered
-            cout << "\n--- New Target Received ---" << endl;
-            cout << "Target X: " << first << ", Y: " << second << endl;
-          // FIXED: Calculate a temporary target bicep value so the prints are honest
-            int targetDutyB = calculateBicepDuty(calculateBicepLengthInv(coord, zoffset));
-            
-            cout << " DUTY SHOULDER = " << inverseCalculateDutyShoulder(coord) << endl;
-            cout << " DUTY BICEP = " << targetDutyB << endl;
-            
-            if (dutyB <= targetDutyB){
-                cout << dutyB << " TO " << targetDutyB << "new is greater" << endl;
-                //cout << " DUTY FOREARM = " << calculateForearmDuty(calculateForearmLengthInv(coord, 10), true, targetDutyB) << endl;
-            }
-            else{
-                cout << dutyB << " TO " << targetDutyB << "old is gfreater" << endl;
-                //cout << " DUTY FOREARM = " << calculateForearmDuty(calculateForearmLengthInv(coord, 10), false, targetDutyB) << endl;
-            }
-            if ((targetDutyB > 460) || (targetDutyB < 299)){
-                cout << "Issue";
-            }
-            else{
-                moveToTarget(coord, prevCoord);
-                prevCoord = coord;
-            }  
-
+        // 2. Consume any whitespace/spaces between the last number and the command key
+        while (Serial.available() > 0 && isspace(Serial.peek())) {
+            Serial.read(); 
         }
+
+        // 3. Read the keystroke safely
+        char incomingKey = ' ';
+        if (Serial.available() > 0) {
+            incomingKey = Serial.read(); // Read the actual 'g' or 'u'
+        }
+
+        // Execute gripping logic
+        if (incomingKey == 'g') {
+            grip();
+        } else if (incomingKey == 'u') {
+            ungrip();
+        }
+
+        // 4. Properly clear out trailing newlines (\r or \n) so loop doesn't re-trigger
+        delay(2); // Tiny delay to let trailing bytes finish arriving
+        while (Serial.available() > 0) {
+            Serial.read();
+        }
+
+        // Update coordinates
+        coord.first = first;
+        coord.second = second;
+        coord.second += 2.5; 
+        
+        // 5. FIXED: Replaced 'cout' with Arduino 'Serial.print'
+        Serial.println(F("\n--- New Target Received ---"));
+        Serial.print(F("Target X: ")); Serial.print(first);
+        Serial.print(F(", Y: ")); Serial.print(second);
+        Serial.print(F(", Z: ")); Serial.println(third);
+        
+        int targetDutyB = calculateBicepDuty(calculateBicepLengthInv(coord, third));
+        
+        Serial.print(F(" DUTY SHOULDER = ")); Serial.println(inverseCalculateDutyShoulder(coord));
+        Serial.print(F(" DUTY BICEP = ")); Serial.println(targetDutyB);
+        
+        if (dutyB <= targetDutyB) {
+            Serial.print(dutyB); Serial.print(F(" TO ")); Serial.print(targetDutyB); Serial.println(F(" new is greater"));
+        } else {
+            Serial.print(dutyB); Serial.print(F(" TO ")); Serial.print(targetDutyB); Serial.println(F(" old is greater"));
+        }
+
+        // Safety Bounds Check
+        if ((targetDutyB > 460) || (targetDutyB < 299)) {
+            Serial.println(F("Issue: Target out of physical bounds!"));
+        } else {
+            moveToTarget(coord, prevCoord, third);
+            prevCoord = coord;
+        }  
+    }
+    
     delay(50);
-    
-    
-  }
+}
   
