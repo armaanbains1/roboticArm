@@ -14,6 +14,24 @@ An autonomous eye-to-hand robotic pick-and-place platform combining computer vis
   * **Version 3 (AI Integration):** Combined the inverse-kinematic engine with an overhead camera pipeline running a custom-trained YOLOv8 object detection model, enabling the platform to autonomously locate, calculate spatial trajectories for, and pick up target objects.
 
 * **The Core Stack:** C++, Python, OpenCV, YOLOv8, PySerial, ESP32, MG996R Servos, Autodesk Fusion 360 (CAD)
+
+---
+
+## 🦾 Kinematics & Firmware Architecture
+
+This layer manages hardware actuation, real-time signal processing, and multi-joint coordination. By handling calculation pipelines natively on the microcontroller, the system avoids relying on resource-heavy operating middleware (like ROS) and ensures deterministic response times.
+
+### 1. Embedded Control Stack (ESP32)
+The low-level electronics architecture is built around an **ESP32 microcontroller** configured to manage real-time multi-servo communication and asynchronous host commands.
+
+* **Multi-Servo PWM Generation:** To drive the physical linkages under continuous load without signal jitter, I utilized the ESP32's hardware-based LEDC peripheral. The stack configures **5 independent PWM channels** running at a base frequency of **50 Hz** with a high-resolution **12-bit depth** (mapping to a discrete duty cycle scale of 0 to 4095). This resolution allows for fractional joint adjustments. Actuators are mapped to dedicated GPIO targets across the bicep, forearm, base shoulder, wrist hand, and gripper assemblies.
+* **Non-Blocking Serial Architecture:** The main execution routine processes incoming coordinate updates over the hardware serial line at a baud rate of **115,200**. Instead of using blocking execution methods like standard `delay()` calls which halt the CPU, the firmware handles inputs dynamically within the `loop()` cycle. 
+* **Dynamic Servo Smoothing:** When a coordinate packet arrives, the script compares the new duty cycle target against the current positions (`prevDutyBicep != dutyBicep`). If a change is detected, the micro stepped-iterates through the duty array smoothly, applying discrete incremental adjustments. This approach prevents massive instantaneous voltage spikes from dropping the power rail, eliminates abrupt mechanical tearing, and generates smooth, predictable 3D paths.
+
+### 2. Custom Inverse Kinematics (IK)
+* Explain the math engine you wrote. Instead of relying on heavy third-party software overhead (like ROS), detail how your native C++ geometry/trigonometry scripts break down 3D space $(X, Y, Z)$ into raw joint angles.
+* **Self-Leveling & Boundaries:** Mention how your firmware handles vertical tracking (Z-axis shifts) while keeping the gripper parallel to the workspace.
+* 
 ---
 
 ## 👁️ Computer Vision & Coordinate Mapping
@@ -30,17 +48,7 @@ An autonomous eye-to-hand robotic pick-and-place platform combining computer vis
 * Explain why switching from a hand-held viewpoint to a completely rigid, static overhead view was necessary for math stability.
 * Detail how you calculated your permanent linear scaling multiplier (multiplying by `0.90476`) to compress the camera's perspective tilt along the Y-axis.
 
----
 
-## 🦾 Kinematics & Firmware Architecture
-*This is your systems engineering section. Detail how the micro-controller processes data without breaking a sweat.*
-
-### 1. Embedded Control Stack (ESP32)
-* Describe your low-level setup. Mention managing multi-servo PWM signals and how you handle incoming data over the Serial line (COM3 at 115200 baud) asynchronously without blocking the execution loops.
-
-### 2. Custom Inverse Kinematics (IK)
-* Explain the math engine you wrote. Instead of relying on heavy third-party software overhead (like ROS), detail how your native C++ geometry/trigonometry scripts break down 3D space $(X, Y, Z)$ into raw joint angles.
-* **Self-Leveling & Boundaries:** Mention how your firmware handles vertical tracking (Z-axis shifts) while keeping the gripper parallel to the workspace.
 
 ---
 
