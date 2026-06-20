@@ -29,9 +29,20 @@ The low-level electronics architecture is built around an **ESP32 microcontrolle
 * **Dynamic Servo Smoothing:** When a coordinate packet arrives, the script compares the new duty cycle target against the current positions (`prevDutyBicep != dutyBicep`). If a change is detected, the micro stepped-iterates through the duty array smoothly, applying discrete incremental adjustments. This approach prevents massive instantaneous voltage spikes from dropping the power rail, eliminates abrupt mechanical tearing, and generates smooth, predictable 3D paths.
 
 ### 2. Custom Inverse Kinematics (IK)
-* Explain the math engine you wrote. Instead of relying on heavy third-party software overhead (like ROS), detail how your native C++ geometry/trigonometry scripts break down 3D space $(X, Y, Z)$ into raw joint angles.
-* **Self-Leveling & Boundaries:** Mention how your firmware handles vertical tracking (Z-axis shifts) while keeping the gripper parallel to the workspace.
-* 
+* This robot a custom inverse kinematics engine that I built
+* Initially, I started with mapping out the angle to pwm ranges, based on the part of the hand
+* For instance, the shoulder had a 180 degree rotation, mapped to a pwm range from 105 to 520
+* This ensured that the actual servo wouldn't stall due to a pwm range that was either too high or too low, resulting in increased current
+* Once this was done, I began with the first version of the software, which used potentiomenters to move the components, including the bicep, forearm, and shoulder to different angles.
+* I then began using this angles to map out exactly how much of the length of the component was being shadowed down onto the workspace itself.
+* These variables, bicepLength, forearmLength, would essentially allow me to have a rough estimate of the length of the arm itself on the desk.
+* I would then use this length, a long with the shoulder's angle to get a breif estimate of exactly where the arm's hand was at,
+* In addition to this, I would then implement z-axis movement into the mix, meaning that I now had another coordinate system
+* Once I had this basis of Kinematics, the next step was to implemement inverse-kinematics
+* The idea was to use the coordinates that I gave to the system, which included (x,y,z), and then, calculate the angle of the bicep, and then figure out the length of the bicep. Once I had the required length of the bicep, I would then, use the calculations that I had from the kinematics calculation, and then inverse the calculation, giving me the duty directly.
+* It was the same process for the forearm, bicep, and shoulder.
+* The hand itself had a different system. In order to allow for the z-axis leveling, I had to take into consideration both the changes in the duty of the forearm and the duty of the bicep, and essentially counteract those changes by adjusting the duty of the hand, allowing it to stay in one position the whole time, which was the position that allowed it to be facing downwards.
+
 ---
 
 ## 👁️ Computer Vision & Coordinate Mapping
