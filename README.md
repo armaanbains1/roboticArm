@@ -82,7 +82,6 @@ Initially, running tests using a hand-held smartphone camera introduced too many
 ---
 
 ## 📐 Mechanical & Structural Design
-*Give a quick nod to your CAD and manufacturing choices.*
 
 * **Linkage Dimensions:** Bicep = `13.5 cm` | Forearm = `16.5 cm`
 * **Stability:** All components were designed and 3D printed by myself. Everything was designed to be able to be attached to my table, and be used correctly. 
@@ -92,19 +91,14 @@ Initially, running tests using a hand-held smartphone camera introduced too many
 ---
 
 ## 📊 Experimental Validation (The Test Clips)
-*Prove that your machine actually works across the entire board. Break down the logic behind why you picked your demo shots.*
 
-### Version 1.0: Hardware & Motion Baselines
-* **Symmetrical Parity:** Mirroring movements across the center line (e.g., `15, 15` to `-15, 15`) to check trigonometric balancing.
-* **The Geometric Workspace Sweep:** Tracing fluid paths through multiple quadrants to verify multi-joint synchronization.
+### Version 2.0: Hardware & Motion Baselines
+* **Symmetrical Parity:** Movements across the center line (e.g., `15, 15`, `-15, 15`) to check trigonometric balancing.
+* **The Geometric Workspace Sweep:** Tracing four different Xs to portray accuracy. 
 
-### Version 2.0: Full Vision Integration (The Multi-Cam Layout)
-*Explain your 4-panel split-screen layout (Raw View, YOLOv8 Overlay, and Dual Hardware Profile Angles).*
+### Version 3.0: Full Vision Integration + Object Pick Up (The Multi-Cam Layout)
 
-* **Clip 1 (Wide Left Sweep):** `(-21.7, 8.7, 10.0)` — Validating wide base rotations and sign-polarity swaps.
-* **Clip 2 (Maximum Extension):** `(0.0, 23.5, 10.0)` — Verifying forward depth scaling at the extreme boundary.
-* **Clip 3 (Close-In Crowding):** `(14.0, 12.0, 10.0)` — Checking linkage folding near the base without joint singularities.
-* **Clip 4 (Fixed Quadrant Calibration):** `(18.7, 11.1, 10.0)` — Proving the accuracy of the fixed-angle camera scaling modifier.
+Here, the robot will go to a specific position based on the coordinated it is fed by the AI model, pick up the object, drop it off at (10,10), and then return back to it's home position (20,0).
 
 ---
 
