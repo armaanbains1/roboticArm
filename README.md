@@ -28,37 +28,55 @@ The low-level electronics architecture is built around an **ESP32 microcontrolle
 * **Non-Blocking Serial Architecture:** The main execution routine processes incoming coordinate updates over the hardware serial line at a baud rate of **115,200**. Instead of using blocking execution methods like standard `delay()` calls which halt the CPU, the firmware handles inputs dynamically within the `loop()` cycle. 
 * **Dynamic Servo Smoothing:** When a coordinate packet arrives, the script compares the new duty cycle target against the current positions (`prevDutyBicep != dutyBicep`). If a change is detected, the micro stepped-iterates through the duty array smoothly, applying discrete incremental adjustments. This approach prevents massive instantaneous voltage spikes from dropping the power rail, eliminates abrupt mechanical tearing, and generates smooth, predictable 3D paths.
 
-### 2. Custom Inverse Kinematics (IK)
-* This robot a custom inverse kinematics engine that I built
-* Initially, I started with mapping out the angle to pwm ranges, based on the part of the hand
-* For instance, the shoulder had a 180 degree rotation, mapped to a pwm range from 105 to 520
-* This ensured that the actual servo wouldn't stall due to a pwm range that was either too high or too low, resulting in increased current
-* Once this was done, I began with the first version of the software, which used potentiomenters to move the components, including the bicep, forearm, and shoulder to different angles.
-* I then began using this angles to map out exactly how much of the length of the component was being shadowed down onto the workspace itself.
-* These variables, bicepLength, forearmLength, would essentially allow me to have a rough estimate of the length of the arm itself on the desk.
-* I would then use this length, a long with the shoulder's angle to get a breif estimate of exactly where the arm's hand was at,
-* In addition to this, I would then implement z-axis movement into the mix, meaning that I now had another coordinate system
-* Once I had this basis of Kinematics, the next step was to implemement inverse-kinematics
-* The idea was to use the coordinates that I gave to the system, which included (x,y,z), and then, calculate the angle of the bicep, and then figure out the length of the bicep. Once I had the required length of the bicep, I would then, use the calculations that I had from the kinematics calculation, and then inverse the calculation, giving me the duty directly.
-* It was the same process for the forearm, bicep, and shoulder.
-* The hand itself had a different system. In order to allow for the z-axis leveling, I had to take into consideration both the changes in the duty of the forearm and the duty of the bicep, and essentially counteract those changes by adjusting the duty of the hand, allowing it to stay in one position the whole time, which was the position that allowed it to be facing downwards.
+### 2. Custom Inverse Kinematics (IK) Engine
+Rather than relying on pre-built robotics toolkits, I designed and coded a custom math engine from scratch to bridge the gap between abstract 3D spatial coordinates and raw actuator joint angles.
+
+* **Actuator Range Mapping & Stall Prevention:** The first step required profiling the physical boundaries of each linkage. For instance, the base shoulder servo operates across a 180-degree physical sweep, which I explicitly mapped to a safe hardware duty cycle range between **105 and 520**. Establishing these strict software-level constraints ensured the actuators would never push past mechanical end-stops, preventing servo stall conditions, minimizing high current spikes, and protecting the power rail from thermal tripping.
+
+* **The Kinematics Baseline (Geometric Shadowing):**
+  To develop an intuition for the physical workspace, I built a baseline Forward Kinematics engine driven by analog potentiometer inputs. I utilized these manual joint positions to calculate how much physical length each arm segment projected down onto the 2D surface of the desk—essentially treating the bicep and forearm linkages as hypotenuses of moving triangles. By continuously resolving these dynamic variables (`bicepLength` and `forearmLength`), the firmware calculated the combined radius of the arm extension. Multiplying this cumulative distance by the sine and cosine of the base shoulder angle provided a real-time, mathematical estimate of exactly where the end-effector was in space.
+
+* **Transitioning to 3D Inverse Kinematics (IK):**
+  Once the forward geometry was verified, I inverted the mathematical pipeline to implement true target-driven Inverse Kinematics. The core objective was to feed an absolute Cartesian vector `(X, Y, Z)` from the computer vision pipeline into the ESP32 and force the microcontroller to solve the required actuator positions backwards. 
+  
+  The engine first parses the targeted position, isolates the base rotation matrix to aim the shoulder, and then breaks down the required vertical depth profile. By evaluating the necessary linear extension across the $Z$-axis, the script determines the exact physical posture the bicep must take. Once the required bicep posture is locked in, the firmware uses the geometric properties established during the forward phase to run a reverse lookup—mapping the spatial requirements directly back into a discrete 12-bit hardware duty cycle. This exact same triangulation process is executed simultaneously across the forearm, bicep, and base shoulder joints to align the entire linkage assembly in a single clock cycle.
+
+* **Dynamic Z-Axis Leveling & End-Effector Stabilization:**
+  The wrist/hand assembly required a completely separate tracking system to manage physical picks cleanly. If the hand remained fixed relative to the forearm, moving the bicep or forearm would cause the gripper to tilt wildly, scraping the table surface or approaching the object at an unusable angle. To achieve true parallel Z-axis self-leveling, the firmware actively monitors the real-time changes in both the bicep and forearm duty cycles. It then dynamically calculates a counteracting offset and applies it directly to the wrist hand servo. This continuous, real-time stabilization loop counteracts any intermediate joint elevation shifts, keeping the gripper locked in a stable, perfectly vertical downward-facing orientation throughout the entire 3D travel arc.
 
 ---
 
 ## 👁️ Computer Vision & Coordinate Mapping
-*Explain how your robot transforms what it "sees" into where it "moves". Describe the hurdles you faced getting the coordinates to match reality.*
+
+This module bridges the gap between what the overhead camera sees and where the physical arm moves. Transforming raw digital pixel coordinates from a video stream into absolute physical destinations requires balancing deep learning inference with geometric transformation pipelines.
 
 ### 1. Object Detection (YOLOv8)
-* Describe how you trained or set up your model (epochs, datasets, what object you targeted, and the typical confidence scores you achieved).
+To allow the robot to identify targets autonomously, I trained a custom **YOLOv8** object detection model (`best.pt`) optimized specifically to localize a green desk eraser. 
+* **The Dataset & Training:** I generated a custom image dataset capturing the object under varying lighting conditions, baseline shifts, and shadows. The model was trained locally over **50 epochs**.
+* **Performance:** The resulting weights are highly optimized for local inference, consistently outputting bounding boxes with a localized confidence threshold **above 83%**. The center point of this bounding box provides the raw `(pixel_x, pixel_y)` anchor for the rest of the mapping stack.
 
-### 2. The Pixels-to-Millimeters Transformation (Homography)
-* Explain how you mapped a 2D image canvas to a physical desk workspace.
-* **The Calibration Trap:** *Write in your own words about the sequence bug we discovered—how calculating the transformation matrix before or after image transformations (like clockwise rotation and resizing to 1280x720) warps the Y-axis projection scaling.*
+---
+
+### 2. Pixels-to-Millimeters Transformation (Homography)
+To translate a raw 2D pixel coordinate into an absolute physical location, I implemented a $3 \times 3$ projective **Homography Matrix** using OpenCV (`cv2.getPerspectiveTransform`). This maps the four clicked pixel corners of the camera view directly to a rigid $600\text{ mm} \times 380\text{ mm}$ physical whiteboard grid boundary on my desk.
+
+* **The Calibration Trap (The Sequence Bug):** During integration, I hit a massive roadblock where the calculated $X$-axis coordinates were dead-on, but the $Y$-axis distances consistently overstretched reality by nearly $2\text{ cm}$. 
+  
+  The culprit was an order-of-operations bug in my vision script: I was generating the `homography_matrix` using corner coordinates captured from a pre-processed canvas, but the script was calculating the matrix *before* actually performing the 90-degree clockwise frame rotation and $1280 \times 720$ canvas resizing on the live image feed. This mismatch caused OpenCV's backend math to scale coordinates using uninitialized canvas dimensions, distorting the aspect ratio projection map. Moving the image rotation and resizing logic to the absolute top of the pipeline—before any transformation matrices are built—completely resolved the core spatial warp.
+
+---
 
 ### 3. Static Camera Angle Calibration
-* Explain why switching from a hand-held viewpoint to a completely rigid, static overhead view was necessary for math stability.
-* Detail how you calculated your permanent linear scaling multiplier (multiplying by `0.90476`) to compress the camera's perspective tilt along the Y-axis.
+Initially, running tests using a hand-held smartphone camera introduced too many variables; minor shifts in hand posture or lens tilt completely invalidated the perspective map between test runs. Moving to a **rigid, completely static overhead camera mount** was critical to lock down a permanent mathematical model of the workspace.
 
+* **Fixing Lens Projection Tilt:**
+  Even with a fixed mount, a camera lens positioned at a slight angle introduces a predictable perspective distortion, stretching the calculated $Y$-values further away from the lens. Because the view is completely static, I was able to isolate and resolve this using linear scaling.
+  
+  By placing the target at a known physical distance ($15.2\text{ cm}$) and measuring the script's raw homography output ($16.8\text{ cm}$), I calculated a permanent corrective multiplier:
+  
+  $$\text{Scaling Factor} = \frac{15.2}{16.8} \approx 0.90476$$
+  
+  Multiplying the raw centimeter outputs by `0.90476` across the entire $Y$-axis compresses the perspective tilt perfectly, creating dead-accurate spatial tracking across all quadrants of the workspace.
 
 
 ---
