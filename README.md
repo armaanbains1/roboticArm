@@ -85,8 +85,9 @@ Initially, running tests using a hand-held smartphone camera introduced too many
 *Give a quick nod to your CAD and manufacturing choices.*
 
 * **Linkage Dimensions:** Bicep = `13.5 cm` | Forearm = `16.5 cm`
-* **Stability:** Describe your physical build setup, including your custom 3D-printed brackets and T-slot slider tracks used to manage the base rotation.
-* **Design Files:** Mention that the completeparametric assembly is preserved in the repository as a universal `.STEP` model for easy cross-platform evaluation.
+* **Stability:** All components were designed and 3D printed by myself. Everything was designed to be able to be attached to my table, and be used correctly. 
+* **Design Files:** All design files are included in the CAD section of the repository
+* **Gripper Design** The gripper was designed using rubber bands, a servo, and 2 sliding pads. The mechanism utilizes a high-torque servo to actively actuate two parallel sliding pads along a guided linear track. To guarantee a secure hold on  surfaces without adding excessive weight or mechanical complexity, I integrated elastic tension bands into the assembly. This setup provides passive compliance and consistent clamping pressure, while the sliding pads conform to the shape of the target object—ensuring slip-free, predictable pick-and-place execution.
 
 ---
 
