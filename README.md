@@ -1,13 +1,19 @@
-# roboticArm
-
 # 6-DOF Autonomous Object Tracking Robotic Arm
 
 An autonomous eye-to-hand robotic pick-and-place platform combining computer vision object localization with custom embedded kinematics.
 
-## 🛠️ Project Overview
-*Write a 2-3 sentence high-level summary of what your machine does. Imagine explaining it to someone who has never seen it before.*
-* **What it does:** * **The Core Stack:** (e.g., Python, OpenCV, YOLOv8, Serial, ESP32, C++, MG996R Servos)
+---
 
+## 🛠️ Project Overview
+
+* **What it does:** This project is a full-stack, 6-DOF autonomous robotic arm that utilizes computer vision to localize objects in a physical workspace and translate those visual data points into real-world coordinate targets. 
+
+* **System Evolution:** The platform was engineered iteratively across three distinct design phases:
+  * **Version 1 (Joint Control):** Built the baseline forward-kinematic engine, mapping analog potentiometer inputs directly to manual multi-servo positioning.
+  * **Version 2 (Coordinate Control):** Developed a custom geometric Inverse-Kinematic (IK) engine, allowing the robot to receive any absolute $(X, Y, Z)$ Cartesian coordinate and solve the required joint angles natively on-chip.
+  * **Version 3 (AI Integration):** Combined the inverse-kinematic engine with an overhead camera pipeline running a custom-trained YOLOv8 object detection model, enabling the platform to autonomously locate, calculate spatial trajectories for, and pick up target objects.
+
+* **The Core Stack:** C++, Python, OpenCV, YOLOv8, PySerial, ESP32, MG996R Servos, Autodesk Fusion 360 (CAD)
 ---
 
 ## 👁️ Computer Vision & Coordinate Mapping
