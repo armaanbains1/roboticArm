@@ -1,6 +1,7 @@
 # 6-DOF Autonomous Object Tracking Robotic Arm
 
 An autonomous eye-to-hand robotic pick-and-place platform combining computer vision object localization with custom embedded kinematics.
+https://youtu.be/r0ZwZUzKdPA
 
 ---
 
