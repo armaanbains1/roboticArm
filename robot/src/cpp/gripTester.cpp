@@ -79,7 +79,6 @@ void setup() {
   ledcSetup(PWM_CHANNEL_GRIPPER, FREQ, PWM_RESOLUTION);
   ledcAttachPin(21, PWM_CHANNEL_GRIPPER); 
 }
-// Add a state tracker at the top of your code with your other variables:
 bool isCurrentlyGripping = false; 
 
 void grip(){
@@ -92,7 +91,7 @@ void grip(){
 void ungrip(){
     for (int duty_cycle = 380; duty_cycle >= 180 ; duty_cycle--){
       ledcWrite(PWM_CHANNEL_GRIPPER, duty_cycle);
-      //delay(5); // ADDED DELAY HERE
+      //delay(5); 
     }
 }
 
@@ -121,7 +120,5 @@ void loop(){
         }
     }
     
-    // Notice how grip() and ungrip() are no longer down here.
-    // The ESP32 will automatically maintain the last PWM signal
-    // sent by ledcWrite(), so the servo will hold its position!
+
 }
