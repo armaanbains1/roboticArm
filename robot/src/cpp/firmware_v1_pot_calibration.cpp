@@ -70,12 +70,10 @@ int prevDutyGripper;
 int length = 0;
 
 
-// put function declarations here:
 
 void setup() {
   Serial.begin(115200);
   bicepLength = 14.5;
-  // put your setup code here, to run once:
   ledcSetup(PWM_CHANNEL_BICEP, FREQ, PWM_RESOLUTION);
   ledcAttachPin(18, PWM_CHANNEL_BICEP);
 
