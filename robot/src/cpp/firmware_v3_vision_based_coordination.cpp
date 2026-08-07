@@ -222,7 +222,6 @@ void grip(){
 void ungrip(){
     for (int duty_cycle = 380; duty_cycle >= 180 ; duty_cycle--){
       ledcWrite(PWM_CHANNEL_GRIPPER, duty_cycle);
-      //delay(5); // ADDED DELAY HERE
     }
 }
 
@@ -232,14 +231,12 @@ void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevC
   if (coord != prevCoord || newZoffset != zoffset) {
     Serial.println(F("new movement")); 
         
-    // 1. Calculate target duties
     dutyS = inverseCalculateDutyShoulder(coord);
     dutyB = calculateBicepDuty(calculateBicepLengthInv(coord, newZoffset));
     
     prevDutyS = inverseCalculateDutyShoulder(prevCoord);
     prevDutyB = calculateBicepDuty(calculateBicepLengthInv(prevCoord, zoffset));
 
-    // Calculate forearm and hand duties based on direction
     if (dutyB >= prevDutyB) {
         prevDutyF = dutyF;
         dutyF = calculateForearmDuty(calculateForearmLengthInv(coord, newZoffset), true, dutyB, prevDutyB, true);
@@ -258,7 +255,6 @@ void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevC
 
     zoffset = newZoffset;
 
-    // 2. Determine the maximum number of steps required across ALL servos
     int deltaS = abs(dutyS - prevDutyS);
     int deltaB = abs(dutyB - prevDutyB);
     int deltaF = abs(dutyF - prevDutyF);
@@ -266,19 +262,16 @@ void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevC
 
     int maxSteps = max(max(deltaS, deltaB), max(deltaF, deltaH));
 
-    if (maxSteps == 0) return; // No movement needed
+    if (maxSteps == 0) return; 
 
-    // 3. Coordinated step loop
     for (int step = 0; step <= maxSteps; step++) {
-        float progress = (float)step / maxSteps; // Normalized progress from 0.0 to 1.0
+        float progress = (float)step / maxSteps; 
 
-        // Linearly interpolate current position for each servo
         int currentS = prevDutyS + (int)((dutyS - prevDutyS) * progress);
         int currentB = prevDutyB + (int)((dutyB - prevDutyB) * progress);
         int currentF = prevDutyF + (int)((dutyF - prevDutyF) * progress);
         int currentH = prevDutyH + (int)((dutyH - prevDutyH) * progress);
 
-        // Write positions simultaneously
         ledcWrite(PWM_CHANNEL_SHOULDER, currentS);
         ledcWrite(PWM_CHANNEL_BICEP, currentB);
         ledcWrite(PWM_CHANNEL_FOREARM, currentF);
@@ -352,7 +345,6 @@ if (prevDutyB >= dutyB) {
       }
   }
 
-  // --- Forearm Startup Movement ---
   if (prevDutyF >= dutyF) {
       for (int duty_cycle = prevDutyF; duty_cycle >= dutyF ; duty_cycle--){
           ledcWrite(PWM_CHANNEL_FOREARM, duty_cycle);
@@ -430,17 +422,14 @@ void loop() {
     // Only trigger if there is actual data waiting
     if (Serial.available() > 0) {
         
-        // 1. Read the three floating-point numbers
         double first = Serial.parseFloat();
         double second = Serial.parseFloat();
         double third = Serial.parseFloat();
 
-        // 2. Consume any whitespace/spaces between the last number and the command key
         while (Serial.available() > 0 && isspace(Serial.peek())) {
             Serial.read(); 
         }
 
-        // 3. Read the keystroke safely
         char incomingKey = ' ';
         if (Serial.available() > 0) {
             incomingKey = Serial.read(); // Read the actual 'g' or 'u'
@@ -453,7 +442,6 @@ void loop() {
             ungrip();
         }
 
-        // 4. Properly clear out trailing newlines (\r or \n) so loop doesn't re-trigger
         delay(2); // Tiny delay to let trailing bytes finish arriving
         while (Serial.available() > 0) {
             Serial.read();
@@ -464,7 +452,6 @@ void loop() {
         coord.second = second;
         coord.second += 2.5; 
         
-        // 5. FIXED: Replaced 'cout' with Arduino 'Serial.print'
         Serial.println(F("\n--- New Target Received ---"));
         Serial.print(F("Target X: ")); Serial.print(first);
         Serial.print(F(", Y: ")); Serial.print(second);
