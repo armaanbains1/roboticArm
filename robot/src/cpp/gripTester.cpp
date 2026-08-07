@@ -71,7 +71,6 @@ int length = 0;
 
 bool gripTF = true;
 
-// put function declarations here:
 
 void setup() {
   Serial.begin(115200);
@@ -98,17 +97,15 @@ void ungrip(){
 void loop(){
   
     if (Serial.available() > 0) {
-        char incomingKey = Serial.read(); // Read the keystroke
+        char incomingKey = Serial.read(); 
         
         if (incomingKey == 'g'){
-            // Only sweep if it isn't ALREADY gripping
             if (!isCurrentlyGripping) {
                 grip();
                 isCurrentlyGripping = true;
             }
         }
         else if (incomingKey == 'u'){
-            // Only sweep if it is currently gripping
             if (isCurrentlyGripping) {
                 ungrip();
                 isCurrentlyGripping = false;
