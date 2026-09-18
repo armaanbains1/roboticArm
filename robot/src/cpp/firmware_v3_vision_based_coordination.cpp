@@ -280,7 +280,6 @@ void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevC
         delay(15); // Controls overall speed of the synchronized movement
     }
 
-    // 4. Update tracking variables for debugging
     Serial.print(F("prevDutyB=")); Serial.print(prevDutyB); Serial.print(F(" dutyB=")); Serial.println(dutyB);
     Serial.print(F("prevDutyF=")); Serial.print(prevDutyF); Serial.print(F(" dutyF=")); Serial.println(dutyF);
   } else {
@@ -442,7 +441,7 @@ void loop() {
             ungrip();
         }
 
-        delay(2); // Tiny delay to let trailing bytes finish arriving
+        delay(2); 
         while (Serial.available() > 0) {
             Serial.read();
         }
