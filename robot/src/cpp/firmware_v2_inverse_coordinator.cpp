@@ -256,7 +256,6 @@ void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevC
 
     zoffset = newZoffset;
 
-    // 2. Determine the maximum number of steps required across ALL servos
     int deltaS = abs(dutyS - prevDutyS);
     int deltaB = abs(dutyB - prevDutyB);
     int deltaF = abs(dutyF - prevDutyF);
@@ -266,11 +265,9 @@ void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevC
 
     if (maxSteps == 0) return; // No movement needed
 
-    // 3. Coordinated step loop
     for (int step = 0; step <= maxSteps; step++) {
         float progress = (float)step / maxSteps; // Normalized progress from 0.0 to 1.0
 
-        // Linearly interpolate current position for each servo
         int currentS = prevDutyS + (int)((dutyS - prevDutyS) * progress);
         int currentB = prevDutyB + (int)((dutyB - prevDutyB) * progress);
         int currentF = prevDutyF + (int)((dutyF - prevDutyF) * progress);
@@ -285,7 +282,6 @@ void moveToTarget(std::pair<double,double> coord, std::pair<double,double> prevC
         delay(15); // Controls overall speed of the synchronized movement
     }
 
-    // 4. Update tracking variables for debugging
     Serial.print(F("prevDutyB=")); Serial.print(prevDutyB); Serial.print(F(" dutyB=")); Serial.println(dutyB);
     Serial.print(F("prevDutyF=")); Serial.print(prevDutyF); Serial.print(F(" dutyF=")); Serial.println(dutyF);
   } else {
@@ -428,17 +424,14 @@ void loop() {
     // Only trigger if there is actual data waiting
     if (Serial.available() > 0) {
         
-        // 1. Read the three floating-point numbers
         double first = Serial.parseFloat();
         double second = Serial.parseFloat();
         double third = Serial.parseFloat();
 
-        // 2. Consume any whitespace/spaces between the last number and the command key
         while (Serial.available() > 0 && isspace(Serial.peek())) {
             Serial.read(); 
         }
 
-        // 3. Read the keystroke safely
         char incomingKey = ' ';
         if (Serial.available() > 0) {
             incomingKey = Serial.read(); // Read the actual 'g' or 'u'
@@ -451,7 +444,6 @@ void loop() {
             ungrip();
         }
 
-        // 4. Properly clear out trailing newlines (\r or \n) so loop doesn't re-trigger
         delay(2); // Tiny delay to let trailing bytes finish arriving
         while (Serial.available() > 0) {
             Serial.read();
